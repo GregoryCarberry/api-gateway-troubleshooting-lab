@@ -5,6 +5,7 @@ from .utils import RequestIDMiddleware
 from .logging_config import setup_logging
 from .rate_limit import RateLimitMiddleware
 from .config import BACKEND_BASE_URL, BACKEND_TIMEOUT_SECONDS, REQUEST_ID_HEADER
+from .proxy import get_backend_health
 
 import requests
 
@@ -43,13 +44,7 @@ def gateway_backend_health(request: Request):
     )
 
     try:
-        backend_response = requests.get(
-            f"{BACKEND_BASE_URL}/health",
-            timeout=BACKEND_TIMEOUT_SECONDS,
-            headers={
-    REQUEST_ID_HEADER: request_id
-}
-        )
+        backend_response = get_backend_health(request_id)
 
         logger.info(
             "Backend response received: status_code=%s request_id=%s",
