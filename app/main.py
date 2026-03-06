@@ -4,6 +4,7 @@ from .auth import APIKeyMiddleware
 from .utils import RequestIDMiddleware
 from .logging_config import setup_logging
 from .rate_limit import RateLimitMiddleware
+from .config import BACKEND_BASE_URL, BACKEND_TIMEOUT_SECONDS, REQUEST_ID_HEADER
 
 import requests
 
@@ -16,8 +17,6 @@ app = FastAPI(
 app.add_middleware(RequestIDMiddleware)
 app.add_middleware(RateLimitMiddleware)
 app.add_middleware(APIKeyMiddleware)
-
-BACKEND_BASE_URL = "http://127.0.0.1:5000"
 
 logger = setup_logging()
 
@@ -46,10 +45,10 @@ def gateway_backend_health(request: Request):
     try:
         backend_response = requests.get(
             f"{BACKEND_BASE_URL}/health",
-            timeout=5,
+            timeout=BACKEND_TIMEOUT_SECONDS,
             headers={
-                "X-Request-ID": request_id
-            }
+    REQUEST_ID_HEADER: request_id
+}
         )
 
         logger.info(

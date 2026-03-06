@@ -2,9 +2,7 @@ import time
 from fastapi import Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
-
-RATE_LIMIT = 3
-WINDOW_SECONDS = 60
+from .config import RATE_LIMIT, WINDOW_SECONDS
 
 client_requests = {}
 
