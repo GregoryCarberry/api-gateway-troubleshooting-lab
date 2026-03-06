@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from .auth import APIKeyMiddleware
+from .utils import RequestIDMiddleware
 
 import requests
 
@@ -10,6 +11,7 @@ app = FastAPI(
     version="1.0"
 )
 
+app.add_middleware(RequestIDMiddleware)
 app.add_middleware(APIKeyMiddleware)
 
 BACKEND_BASE_URL = "http://127.0.0.1:5000"
