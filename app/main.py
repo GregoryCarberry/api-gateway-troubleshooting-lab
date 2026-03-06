@@ -1,5 +1,7 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from .auth import APIKeyMiddleware
+
 import requests
 
 app = FastAPI(
@@ -7,6 +9,8 @@ app = FastAPI(
     description="Simulated API gateway used for troubleshooting integration scenarios",
     version="1.0"
 )
+
+app.add_middleware(APIKeyMiddleware)
 
 BACKEND_BASE_URL = "http://127.0.0.1:5000"
 
