@@ -1,206 +1,266 @@
+# API Troubleshooting Lab – Gateway Service
 
-# API Gateway Troubleshooting Lab
+This repository contains the **API gateway** for the API Troubleshooting Lab project.
 
-A lightweight API gateway built with FastAPI that simulates common API
-platform failures such as authentication errors, rate limiting, backend
-outages, and request tracing.
+It sits in front of the backend service and simulates real-world API platform behaviour, including authentication, rate limiting, request tracing, and upstream failure handling.
 
-This repository is part of the **API Troubleshooting Lab Series**, a
-multi-service environment designed to demonstrate real-world integration
-debugging and platform support scenarios.
-
-Companion repository:
-
-API Integration Troubleshooting Lab  
-https://github.com/GregoryCarberry/api-integration-troubleshooting-lab
+This project demonstrates real-world API troubleshooting techniques, including structured logging, request tracing, and failure simulation across a gateway-backend architecture.
 
 ---
 
-# Lab Series Architecture
+## Role in the Architecture
 
-![API Troubleshooting Lab Series Architecture](docs/api-troubleshooting-lab-shared-architecture.svg)
+```text
+Client
+  │
+  ▼
+API Gateway (FastAPI)
+  │
+  ▼
+Backend API (Flask)
+  │
+  ▼
+Response
+```
 
-The gateway sits between clients and the backend API service. It
-implements platform-level behaviours commonly found in production API
-gateways.
-
----
-
-# Quick Start
-
-1. Start the backend API
-2. Start the gateway
-3. Send requests via Postman or curl
-4. Observe platform-level failures
-
----
-
-# What This Project Demonstrates
-
-This lab simulates **realistic API platform troubleshooting scenarios**.
-
-Skills demonstrated:
-
-- API authentication debugging
-- rate limiting behaviour analysis
-- request tracing with correlation IDs
-- isolating gateway vs backend failures
-- diagnosing upstream service failures
+The gateway is responsible for **platform-level concerns**, while the backend handles **application logic**.
 
 ---
 
-# Failure Scenarios
+## What This Service Does
 
-| Scenario | Layer | Response |
-|--------|--------|--------|
-| Missing API key | Gateway | 401 |
-| Invalid API key | Gateway | 403 |
-| Rate limit exceeded | Gateway | 429 |
-| Backend unavailable | Gateway | 502 |
-| Backend timeout | Gateway | 504 |
+The gateway is responsible for:
 
----
-
-# Troubleshooting Workflow Example
-
-Client request fails  
-↓  
-Gateway returns **502 Bad Gateway**  
-↓  
-Inspect gateway logs for **X-Request-ID**  
-↓  
-Trace request in backend logs  
-↓  
-Identify root cause (payload error / backend failure)  
-↓  
-Correct request and retry
+- enforcing API key authentication
+- applying rate limiting controls
+- generating and propagating request IDs
+- forwarding requests to the backend service
+- handling upstream errors (timeouts, failures)
+- providing a controlled troubleshooting environment
 
 ---
 
-# Observability
+## Technology
 
-Each request receives a unique **X-Request-ID**.
-
-This ID:
-
-- appears in gateway logs
-- is forwarded to the backend
-- allows cross-service log tracing
+- Python
+- FastAPI
+- Uvicorn
+- Structured JSON logging
+- Request correlation via `X-Request-ID`
 
 ---
 
-# Features
+## Key Features
 
-## Authentication
+### Authentication
 
 Requests must include:
 
-    X-API-Key: lab-demo-key
+```http
+X-API-Key: lab-demo-key
+```
 
-## Rate Limiting
+| Scenario | Status |
+|--------|--------|
+| missing API key | 401 |
+| invalid API key | 403 |
 
-Clients are limited to a fixed number of requests per time window.
+---
+
+### Rate Limiting
+
+Requests are limited within a time window.
 
 Exceeded limits return:
 
-    429 Too Many Requests
+```http
+429 Too Many Requests
+```
 
-## Request Tracing
+---
 
-The gateway generates a request ID if one is not provided.
+### Backend Proxying
 
-## Backend Proxying
-
-Gateway endpoints forward requests to the backend service.
+The gateway forwards requests to the backend service.
 
 Example:
 
-    GET /gateway/health → GET /health (backend)
+```text
+GET /gateway/health → GET /health (backend)
+```
 
 ---
 
-# Repository Structure
+### Failure Handling
 
-api-gateway-troubleshooting-lab/
+The gateway converts backend failures into appropriate client responses:
 
-├── app/  
-│   ├── main.py  
-│   ├── auth.py  
-│   ├── rate_limit.py  
-│   ├── utils.py  
-│   ├── proxy.py  
-│   ├── config.py  
-│   └── logging_config.py  
-
-├── docs/  
-│   └── api-troubleshooting-lab-shared-architecture.svg  
-
-├── requirements.txt  
-└── README.md  
+| Scenario | Status |
+|--------|--------|
+| backend unavailable | 502 |
+| backend timeout | 504 |
 
 ---
 
-# Running the Gateway
+## Endpoints
 
-Create a virtual environment:
+### `GET /health`
 
-    python -m venv .venv
-    source .venv/bin/activate
+Gateway health check.
+
+```bash
+curl http://localhost:8000/health
+```
+
+---
+
+### `GET /gateway/health`
+
+Proxies request to backend health endpoint.
+
+```bash
+curl -H "X-API-Key: lab-demo-key" http://localhost:8000/gateway/health
+```
+
+---
+
+## Observability & Request Tracing
+
+The gateway uses structured logging and request correlation to enable end-to-end tracing across services.
+
+Each incoming request is assigned an `X-Request-ID` if one is not already present. That value is:
+
+- stored for the lifetime of the request
+- included in gateway logs
+- forwarded to the backend service
+- returned in response headers
+
+---
+
+### Trace Flow
+
+```text
+client → gateway → backend → response
+```
+
+---
+
+### Example Response Header
+
+```http
+X-Request-ID: 9d966301-ebce-4552-b764-09c498f760f4
+```
+
+---
+
+### Example Gateway Log Output
+
+```json
+{
+  "timestamp": "2026-03-17T21:00:00.000000",
+  "level": "INFO",
+  "service": "api-gateway",
+  "message": "Gateway request received",
+  "request_id": "9d966301-ebce-4552-b764-09c498f760f4"
+}
+```
+
+---
+
+### End-to-End Trace Example
+
+A single request can be traced across both gateway and backend services using the same request ID.
+
+**Response header:**
+
+```http
+X-Request-ID: 9d966301-ebce-4552-b764-09c498f760f4
+```
+
+**Gateway log:**
+
+```json
+{
+  "message": "Gateway request received",
+  "request_id": "9d966301-ebce-4552-b764-09c498f760f4"
+}
+```
+
+**Backend log:**
+
+```json
+{
+  "message": "Health check received",
+  "request_id": "9d966301-ebce-4552-b764-09c498f760f4"
+}
+```
+
+---
+
+### Why This Matters
+
+This enables:
+
+- cross-service troubleshooting
+- fast identification of failure points (gateway vs backend)
+- log correlation across services
+- more production-like observability patterns
+
+---
+
+## Troubleshooting Workflow Example
+
+```text
+Client request fails
+↓
+Gateway returns 502 or 504
+↓
+Inspect gateway logs using X-Request-ID
+↓
+Trace request in backend logs
+↓
+Identify root cause
+↓
+Fix request or backend behaviour
+```
+
+---
+
+## Running the Gateway
+
+Create virtual environment:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+```
 
 Install dependencies:
 
-    pip install -r requirements.txt
+```bash
+pip install -r requirements.txt
+```
 
 Run the gateway:
 
-    uvicorn app.main:app --reload
+```bash
+uvicorn app.main:app --reload
+```
 
-Gateway endpoint:
+Gateway runs on:
 
-    http://localhost:8000
-
----
-
-# Example Requests
-
-Gateway health:
-
-    curl http://localhost:8000/health
-
-Backend health via gateway:
-
-    curl -H "X-API-Key: lab-demo-key" http://localhost:8000/gateway/health
-
-Rate limit test:
-
-    curl -H "X-API-Key: lab-demo-key" http://localhost:8000/gateway/health
+```text
+http://localhost:8000
+```
 
 ---
 
-# Lab Exercises
+## Project Context
 
-- Trigger authentication errors
-- Trigger rate limiting
-- Observe gateway error responses
-- Trace request IDs across services
+This service is part of the **API Troubleshooting Lab** multi-repository project.
 
----
+The full architecture, diagrams, and cross-repository documentation are maintained in the hub repository:
 
-# System Design Notes
-
-This gateway models behaviours commonly implemented by:
-
-- Kong
-- AWS API Gateway
-- NGINX-based gateways
-
-It isolates platform-level functionality from application logic,
-allowing failures to be diagnosed more easily.
-
----
-
-# Future Improvements
-
-- distributed tracing integration
-- metrics collection
-- containerised deployment
+```text
+api-troubleshooting-lab
+```
