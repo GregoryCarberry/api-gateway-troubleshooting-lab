@@ -1,0 +1,5 @@
+curl -X POST http://localhost:8000/orders \
+  -H "Content-Type: application/xml" \
+  -H "X-API-Key: test-key" \
+  -H "X-Failure-Mode: dependency" \
+  --data-binary @valid-order.xml

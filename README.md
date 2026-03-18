@@ -2,9 +2,9 @@
 
 This repository contains the **API gateway** for the API Troubleshooting Lab project.
 
-It sits in front of the backend service and simulates real-world API platform behaviour, including authentication, rate limiting, request tracing, and upstream failure handling.
+It sits in front of the backend service and handles real-world API platform concerns such as authentication, rate limiting, request tracing, and upstream failure handling.
 
-This project demonstrates real-world API troubleshooting techniques, including structured logging, request tracing, and failure simulation across a gateway-backend architecture.
+This project demonstrates practical API troubleshooting techniques, with a focus on **structured logging, request tracing, failure handling, and test-driven verification across a multi-service architecture**.
 
 ---
 
@@ -47,6 +47,7 @@ The gateway is responsible for:
 - Uvicorn
 - Structured JSON logging
 - Request correlation via `X-Request-ID`
+- Pytest + httpx for test coverage
 
 ---
 
@@ -205,6 +206,31 @@ This enables:
 - fast identification of failure points (gateway vs backend)
 - log correlation across services
 - more production-like observability patterns
+
+---
+
+## Running Tests
+
+Install dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+Run the test suite:
+
+```bash
+pytest -q
+```
+
+### What is covered
+
+- API key authentication (valid / invalid / missing)
+- rate limiting behaviour
+- gateway → backend proxy behaviour
+- upstream timeout and failure handling
+- request tracing via `X-Request-ID`
+- response propagation from backend
 
 ---
 
