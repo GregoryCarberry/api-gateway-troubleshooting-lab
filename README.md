@@ -2,9 +2,9 @@
 
 This repository contains the **API gateway** for the API Troubleshooting Lab project.
 
-It sits in front of the backend service and handles real-world API platform concerns such as authentication, rate limiting, request tracing, and upstream failure handling.
+It sits in front of the backend service and handles the platform concerns that usually shape real troubleshooting work: **authentication, rate limiting, request tracing, proxying, and upstream failure handling**.
 
-This project demonstrates practical API troubleshooting techniques, with a focus on **structured logging, request tracing, failure handling, and test-driven verification across a multi-service architecture**.
+This service is designed to help demonstrate how API issues can be reproduced, observed, isolated, and tested across a multi-service system.
 
 ---
 
@@ -23,7 +23,7 @@ Backend API (Flask)
 Response
 ```
 
-The gateway is responsible for **platform-level concerns**, while the backend handles **application logic**.
+The gateway is responsible for **platform-level controls and cross-service observability**, while the backend handles **application logic and XML validation**.
 
 ---
 
@@ -35,8 +35,8 @@ The gateway is responsible for:
 - applying rate limiting controls
 - generating and propagating request IDs
 - forwarding requests to the backend service
-- handling upstream errors (timeouts, failures)
-- providing a controlled troubleshooting environment
+- handling upstream errors such as backend failures and timeouts
+- providing a realistic entry point for troubleshooting exercises
 
 ---
 
@@ -48,6 +48,7 @@ The gateway is responsible for:
 - Structured JSON logging
 - Request correlation via `X-Request-ID`
 - Pytest + httpx for test coverage
+- Postman for reproducible API demos
 
 ---
 
@@ -136,23 +137,17 @@ Each incoming request is assigned an `X-Request-ID` if one is not already presen
 - forwarded to the backend service
 - returned in response headers
 
----
-
 ### Trace Flow
 
 ```text
 client → gateway → backend → response
 ```
 
----
-
 ### Example Response Header
 
 ```http
 X-Request-ID: 9d966301-ebce-4552-b764-09c498f760f4
 ```
-
----
 
 ### Example Gateway Log Output
 
@@ -165,8 +160,6 @@ X-Request-ID: 9d966301-ebce-4552-b764-09c498f760f4
   "request_id": "9d966301-ebce-4552-b764-09c498f760f4"
 }
 ```
-
----
 
 ### End-to-End Trace Example
 
@@ -196,16 +189,61 @@ X-Request-ID: 9d966301-ebce-4552-b764-09c498f760f4
 }
 ```
 
----
-
 ### Why This Matters
 
 This enables:
 
 - cross-service troubleshooting
-- fast identification of failure points (gateway vs backend)
+- faster isolation of whether a failure is happening at the gateway or backend layer
 - log correlation across services
-- more production-like observability patterns
+- a more production-like debugging workflow
+
+---
+
+## Postman Collection
+
+The main demo collection for this project lives in:
+
+```text
+postman/api-troubleshooting-lab.postman_collection.json
+```
+
+This collection is intentionally **gateway-first**. It reflects how a client would interact with the system in practice and exercises the full request path through the gateway into the backend.
+
+### Included scenarios
+
+- successful request flow
+- missing API key (`401`)
+- invalid API key (`403`)
+- rate limiting (`429`)
+- wrong content type (`415`)
+- malformed XML (`400`)
+- missing required fields (`422`)
+- invalid values such as quantity validation failures (`422`)
+- simulated backend dependency failure (`503`)
+- simulated backend exception (`500`)
+- simulated backend timeout surfaced by the gateway (`504`)
+- request ID generation and propagation for traceability
+
+### Recommended variables
+
+Use these collection variables in Postman:
+
+```text
+base_url = http://127.0.0.1:8000
+api_key  = lab-demo-key
+```
+
+### Why the collection is here
+
+The collection belongs in the gateway repository because it represents the **main client entry point** into the system.
+
+That makes this repo the most natural place to demonstrate:
+
+- auth behaviour
+- gateway controls
+- upstream error handling
+- end-to-end troubleshooting paths
 
 ---
 

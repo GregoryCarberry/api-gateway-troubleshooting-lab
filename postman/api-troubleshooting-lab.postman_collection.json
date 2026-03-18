@@ -1,0 +1,795 @@
+{
+  "info": {
+    "_postman_id": "8a6ed3aa-c3fa-4d9b-bf93-4a74ecf4b211",
+    "name": "API Troubleshooting Lab - End-to-End Demo",
+    "description": "Postman collection for exercising the API Troubleshooting Lab through the gateway. Covers health checks, authentication failures, XML validation errors, backend failure simulation, request tracing, and rate limiting.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://127.0.0.1:8000"
+    },
+    {
+      "key": "api_key",
+      "value": "lab-demo-key"
+    },
+    {
+      "key": "request_id",
+      "value": ""
+    },
+    {
+      "key": "order_id",
+      "value": ""
+    },
+    {
+      "key": "valid_order_xml",
+      "value": "<Order>\n  <CustomerID>12345</CustomerID>\n  <ProductID>ABC123</ProductID>\n  <Quantity>2</Quantity>\n</Order>"
+    },
+    {
+      "key": "malformed_order_xml",
+      "value": "<Order>\n  <CustomerID>12345</CustomerID>\n  <ProductID>ABC123</ProductID>\n  <Quantity>2</Quantity>"
+    },
+    {
+      "key": "missing_fields_xml",
+      "value": "<Order>\n  <CustomerID>12345</CustomerID>\n  <Quantity>2</Quantity>\n</Order>"
+    },
+    {
+      "key": "invalid_quantity_xml",
+      "value": "<Order>\n  <CustomerID>12345</CustomerID>\n  <ProductID>ABC123</ProductID>\n  <Quantity>0</Quantity>\n</Order>"
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "pm.collectionVariables.set('request_id', pm.variables.replaceIn('{{$guid}}'));"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "Health Checks",
+      "item": [
+        {
+          "name": "Gateway Health",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Request-ID",
+                "value": "{{request_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Basic health check for the FastAPI gateway."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Response contains gateway status', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.status).to.eql('ok');",
+                  "  pm.expect(json.service).to.eql('api-gateway');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Backend Health via Gateway",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Request-ID",
+                "value": "{{request_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/gateway/health",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "gateway",
+                "health"
+              ]
+            },
+            "description": "Verifies gateway-to-backend connectivity and request tracing through the proxy."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Request ID returned', function () {",
+                  "  pm.expect(pm.response.json().request_id).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Orders - Success and Validation",
+      "item": [
+        {
+          "name": "Create Order - Success",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Request-ID",
+                "value": "{{request_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/xml",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/orders",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "orders"
+              ]
+            },
+            "description": "Happy path request through the gateway using a valid XML payload.",
+            "body": {
+              "mode": "raw",
+              "raw": "{{valid_order_xml}}",
+              "options": {
+                "raw": {
+                  "language": "xml"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', function () { pm.response.to.have.status(201); });",
+                  "pm.test('Response contains OrderID', function () {",
+                  "  const text = pm.response.text();",
+                  "  pm.expect(text).to.include('<OrderCreated>');",
+                  "  const match = text.match(/<OrderID>([^<]+)<\\/OrderID>/);",
+                  "  pm.expect(match).to.not.be.null;",
+                  "  pm.collectionVariables.set('order_id', match[1]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Order - Wrong Content-Type",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Request-ID",
+                "value": "{{request_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "text/plain",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/orders",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "orders"
+              ]
+            },
+            "description": "Gateway rejects the request before it reaches the backend because the content type is wrong.",
+            "body": {
+              "mode": "raw",
+              "raw": "{{valid_order_xml}}",
+              "options": {
+                "raw": {
+                  "language": "text"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 415', function () { pm.response.to.have.status(415); });",
+                  "pm.test('Unsupported media type error returned', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.error).to.eql('Unsupported Media Type');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Order - Malformed XML",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Request-ID",
+                "value": "{{request_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/xml",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/orders",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "orders"
+              ]
+            },
+            "description": "Backend rejects malformed XML and returns a 400 Bad Request through the gateway.",
+            "body": {
+              "mode": "raw",
+              "raw": "{{malformed_order_xml}}",
+              "options": {
+                "raw": {
+                  "language": "xml"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400', function () { pm.response.to.have.status(400); });",
+                  "pm.test('Malformed XML message returned', function () {",
+                  "  pm.expect(pm.response.text()).to.include('Malformed XML');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Order - Missing Fields",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Request-ID",
+                "value": "{{request_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/xml",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/orders",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "orders"
+              ]
+            },
+            "description": "Backend validates required XML fields and returns 422 when ProductID is missing.",
+            "body": {
+              "mode": "raw",
+              "raw": "{{missing_fields_xml}}",
+              "options": {
+                "raw": {
+                  "language": "xml"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 422', function () { pm.response.to.have.status(422); });",
+                  "pm.test('Missing field error returned', function () {",
+                  "  pm.expect(pm.response.text()).to.include('missing or empty');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Order - Invalid Quantity",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Request-ID",
+                "value": "{{request_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/xml",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/orders",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "orders"
+              ]
+            },
+            "description": "Backend validates Quantity and rejects zero or negative values.",
+            "body": {
+              "mode": "raw",
+              "raw": "{{invalid_quantity_xml}}",
+              "options": {
+                "raw": {
+                  "language": "xml"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 422', function () { pm.response.to.have.status(422); });",
+                  "pm.test('Quantity validation error returned', function () {",
+                  "  pm.expect(pm.response.text()).to.include('positive integer');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Auth and Rate Limiting",
+      "item": [
+        {
+          "name": "Create Order - Missing API Key",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Request-ID",
+                "value": "{{request_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/xml",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/orders",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "orders"
+              ]
+            },
+            "description": "Gateway rejects the request because X-API-Key is missing.",
+            "body": {
+              "mode": "raw",
+              "raw": "{{valid_order_xml}}",
+              "options": {
+                "raw": {
+                  "language": "xml"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 401', function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Order - Invalid API Key",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "definitely-wrong",
+                "type": "text"
+              },
+              {
+                "key": "X-Request-ID",
+                "value": "{{request_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/xml",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/orders",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "orders"
+              ]
+            },
+            "description": "Gateway rejects the request because the API key is invalid.",
+            "body": {
+              "mode": "raw",
+              "raw": "{{valid_order_xml}}",
+              "options": {
+                "raw": {
+                  "language": "xml"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 403', function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Order - Rate Limit Demo",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Request-ID",
+                "value": "{{request_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/xml",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/orders",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "orders"
+              ]
+            },
+            "description": "Send this request repeatedly in quick succession. The gateway rate limit is 3 requests per 60 seconds, so repeated sends should trigger 429 Too Many Requests.",
+            "body": {
+              "mode": "raw",
+              "raw": "{{valid_order_xml}}",
+              "options": {
+                "raw": {
+                  "language": "xml"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Returns either 201 or 429 depending on current rate window', function () {",
+                  "  pm.expect([201, 429]).to.include(pm.response.code);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Backend Failure Simulation",
+      "item": [
+        {
+          "name": "Create Order - Backend Dependency Failure",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Request-ID",
+                "value": "{{request_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/xml",
+                "type": "text"
+              },
+              {
+                "key": "X-Failure-Mode",
+                "value": "dependency",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/orders",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "orders"
+              ]
+            },
+            "description": "Backend simulates an upstream dependency failure and returns 503.",
+            "body": {
+              "mode": "raw",
+              "raw": "{{valid_order_xml}}",
+              "options": {
+                "raw": {
+                  "language": "xml"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 503', function () { pm.response.to.have.status(503); });",
+                  "pm.test('Dependency failure surfaced', function () {",
+                  "  pm.expect(pm.response.text()).to.include('Service Unavailable');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Order - Backend Exception",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Request-ID",
+                "value": "{{request_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/xml",
+                "type": "text"
+              },
+              {
+                "key": "X-Failure-Mode",
+                "value": "exception",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/orders",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "orders"
+              ]
+            },
+            "description": "Backend simulates an unhandled exception and returns 500 through the gateway.",
+            "body": {
+              "mode": "raw",
+              "raw": "{{valid_order_xml}}",
+              "options": {
+                "raw": {
+                  "language": "xml"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 500', function () { pm.response.to.have.status(500); });",
+                  "pm.test('Exception response returned', function () {",
+                  "  pm.expect(pm.response.text()).to.include('Internal Server Error');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Order - Backend Timeout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Request-ID",
+                "value": "{{request_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/xml",
+                "type": "text"
+              },
+              {
+                "key": "X-Failure-Mode",
+                "value": "timeout",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/orders",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "orders"
+              ]
+            },
+            "description": "Gateway times out waiting for the backend and returns 504 with the same request ID for tracing.",
+            "body": {
+              "mode": "raw",
+              "raw": "{{valid_order_xml}}",
+              "options": {
+                "raw": {
+                  "language": "xml"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 504', function () { pm.response.to.have.status(504); });",
+                  "pm.test('Timeout surfaced through gateway', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.error).to.eql('Gateway Timeout');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
