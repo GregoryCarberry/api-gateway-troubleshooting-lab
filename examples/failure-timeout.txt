@@ -1,5 +1,5 @@
-curl -X POST http://localhost:8000/orders \
+curl -i -X POST http://127.0.0.1:8000/orders \
   -H "Content-Type: application/xml" \
-  -H "X-API-Key: test-key" \
+  -H "X-API-Key: lab-demo-key" \
   -H "X-Failure-Mode: timeout" \
   --data-binary @valid-order.xml
