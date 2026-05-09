@@ -63,7 +63,7 @@ X-API-Key: lab-demo-key
 ```
 
 | Scenario | Status |
-|--------|--------|
+|---|---|
 | missing API key | 401 |
 | invalid API key | 403 |
 
@@ -83,9 +83,15 @@ Exceeded limits return:
 
 ### Backend Proxying
 
-The gateway forwards requests to the backend service.
+The gateway forwards client requests to the backend service.
 
-Example:
+Example request flow:
+
+```text
+POST /orders → POST /api/orders (backend)
+```
+
+Health-check proxying is also available:
 
 ```text
 GET /gateway/health → GET /health (backend)
@@ -98,9 +104,11 @@ GET /gateway/health → GET /health (backend)
 The gateway converts backend failures into appropriate client responses:
 
 | Scenario | Status |
-|--------|--------|
+|---|---|
 | backend unavailable | 502 |
 | backend timeout | 504 |
+| simulated backend dependency failure | 503 |
+| simulated backend exception | 500 |
 
 ---
 
@@ -122,6 +130,35 @@ Proxies request to backend health endpoint.
 
 ```bash
 curl -H "X-API-Key: lab-demo-key" http://localhost:8000/gateway/health
+```
+
+---
+
+### `POST /orders`
+
+Main gateway entry point for order requests.
+
+```bash
+curl -i -X POST http://127.0.0.1:8000/orders \
+  -H "X-API-Key: lab-demo-key" \
+  -H "Content-Type: application/xml" \
+  -d '<Order>
+  <CustomerID>12345</CustomerID>
+  <ProductID>ABC123</ProductID>
+  <Quantity>2</Quantity>
+</Order>'
+```
+
+Expected successful response:
+
+```http
+HTTP/1.1 201 Created
+```
+
+```xml
+<OrderCreated>
+  <OrderID>generated-order-id</OrderID>
+</OrderCreated>
 ```
 
 ---
@@ -184,7 +221,7 @@ X-Request-ID: 9d966301-ebce-4552-b764-09c498f760f4
 
 ```json
 {
-  "message": "Health check received",
+  "message": "Order request received",
   "request_id": "9d966301-ebce-4552-b764-09c498f760f4"
 }
 ```
@@ -200,19 +237,27 @@ This enables:
 
 ---
 
-## Postman Collection
+## Postman Demo Collection
 
-The main demo collection for this project lives in:
+The canonical Postman demo collection is maintained in the hub repository, not in this gateway repository.
+
+Hub repository:
 
 ```text
-postman/api-troubleshooting-lab.postman_collection.json
+api-troubleshooting-lab
 ```
 
-This collection is intentionally **gateway-first**. It reflects how a client would interact with the system in practice and exercises the full request path through the gateway into the backend.
+Collection path in the hub repository:
+
+```text
+postman/API Troubleshooting Lab.postman_collection.json
+```
+
+The collection is intentionally **gateway-first**. It reflects how a client would interact with the system in practice and exercises the full request path through the gateway into the backend.
 
 ### Included scenarios
 
-- successful request flow
+- successful request flow (`201`)
 - missing API key (`401`)
 - invalid API key (`403`)
 - rate limiting (`429`)
@@ -234,16 +279,11 @@ base_url = http://127.0.0.1:8000
 api_key  = lab-demo-key
 ```
 
-### Why the collection is here
+### Why the collection lives in the hub repository
 
-The collection belongs in the gateway repository because it represents the **main client entry point** into the system.
+The collection demonstrates the full multi-service lab rather than this gateway service in isolation.
 
-That makes this repo the most natural place to demonstrate:
-
-- auth behaviour
-- gateway controls
-- upstream error handling
-- end-to-end troubleshooting paths
+Keeping the collection in the hub repository avoids duplicate Postman files drifting apart and gives the project a single source of truth for demos.
 
 ---
 
@@ -265,7 +305,7 @@ pytest -q
 
 - API key authentication (valid / invalid / missing)
 - rate limiting behaviour
-- gateway → backend proxy behaviour
+- gateway to backend proxy behaviour
 - upstream timeout and failure handling
 - request tracing via `X-Request-ID`
 - response propagation from backend
@@ -277,13 +317,15 @@ pytest -q
 ```text
 Client request fails
 ↓
-Gateway returns 502 or 504
+Gateway returns 502, 503, 504, or validation response
+↓
+Inspect response status and X-Request-ID
 ↓
 Inspect gateway logs using X-Request-ID
 ↓
 Trace request in backend logs
 ↓
-Identify root cause
+Identify whether the issue is gateway-side, backend-side, or request-side
 ↓
 Fix request or backend behaviour
 ```
@@ -308,7 +350,7 @@ pip install -r requirements.txt
 Run the gateway:
 
 ```bash
-uvicorn app.main:app --reload
+python -m uvicorn app.main:app --reload
 ```
 
 Gateway runs on:
@@ -317,13 +359,19 @@ Gateway runs on:
 http://localhost:8000
 ```
 
+The backend service should be running separately on:
+
+```text
+http://127.0.0.1:5000
+```
+
 ---
 
 ## Project Context
 
 This service is part of the **API Troubleshooting Lab** multi-repository project.
 
-The full architecture, diagrams, and cross-repository documentation are maintained in the hub repository:
+The full architecture, diagrams, shared Postman collection, and cross-repository documentation are maintained in the hub repository:
 
 ```text
 api-troubleshooting-lab
